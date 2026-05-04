@@ -59,6 +59,8 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define CS_IMU0_Pin GPIO_PIN_4
 #define CS_IMU0_GPIO_Port GPIOA
+#define CS_SDCard0_Pin GPIO_PIN_2
+#define CS_SDCard0_GPIO_Port GPIOD
 
 /* USER CODE BEGIN Private defines */
 

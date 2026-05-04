@@ -27,5 +27,6 @@ build/
 # Claude Specific files
 CLAUDE.md
 .claude/
+newest_prompt.md
 
 dataset/synthetic_v1.h5
