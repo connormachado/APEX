@@ -1,2 +1,29 @@
 .venv
 /venv
+/dataset
+
+# macOS
+.DS_Store
+
+# Eclipse / STM32CubeIDE project files
+.cproject
+.mxproject
+.osx.project
+.project
+.settings/
+*.ioc          # optional — some people DO commit .ioc
+
+# Build artifacts
+build/
+*.o
+*.elf
+*.bin
+*.hex
+*.map
+
+# IDE-specific
+.vs/
+
+CLAUDE.md
+
+dataset/synthetic_v1.h5
