@@ -24,6 +24,8 @@ build/
 # IDE-specific
 .vs/
 
+# Claude Specific files
 CLAUDE.md
+.claude/
 
 dataset/synthetic_v1.h5
