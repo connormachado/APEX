@@ -12,6 +12,7 @@
 #include "lsm6dso.h"
 #include "spi.h"
 #include "stm32h7xx_hal_pwr_ex.h"
+#include "sd_log.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -34,6 +35,8 @@ SPI_HandleTypeDef hspi3;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
+static uint32_t frame_counter = 0;
+static uint8_t  first_dump_done = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -91,6 +94,16 @@ int main(void)
   // CS HIGH = deselected. Should already be HIGH from GPIO init, but be paranoid.
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
   HAL_Delay(1);
+
+  /* Mount SD and open APEXxxxx.BIN. SPI3 prescaler is moved to fast (BAUD/16)                                                                                                      
+     automatically by disk_initialize() once the card finishes its slow-clock                                                                                                       
+     init handshake. */                                                                                                                                                             
+  if (sd_log_init() != SD_LOG_OK) {                                                                                                                                                 
+      printf("sd_log_init FAILED\r\n");                                                                                                                                             
+  } else {                                                                                                                                                                          
+      printf("sd_log_init OK\r\n");
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -117,11 +130,39 @@ int main(void)
     {
         // printf("Testing IMU %d for WHO_AM_I...\n", imu0.cs_pin);
         imu_read_all_data(&imu0, imu_raw_data);
-        printf("Gyro X: %d, Gyro Y: %d, Gyro Z: %d, Accel X: %d, Accel Y: %d, Accel Z: %d\r\n", 
+        printf("Gyro X: %d, Gyro Y: %d, Gyro Z: %d, Accel X: %d, Accel Y: %d, Accel Z: %d\r\n",
             imu_raw_data[0], imu_raw_data[1], imu_raw_data[2], imu_raw_data[3], imu_raw_data[4], imu_raw_data[5]);
 
+        apex_frame_t frame = {
+            .sync         = 0xA5,
+            .timestamp_us = HAL_GetTick() * 1000u,
+            .imu_index    = 0,
+            .gyro         = { imu_raw_data[0], imu_raw_data[1], imu_raw_data[2] },
+            .accel        = { imu_raw_data[3], imu_raw_data[4], imu_raw_data[5] },
+        };
+        frame.crc8 = crc8_compute((const uint8_t *)&frame, 18);
+        sd_log_write_frame(&frame);
+        frame_counter++;
+
+        if ((frame_counter % 16) == 0) {
+            sd_log_flush();
+        }
+
+        if ((frame_counter % 100) == 0) {
+            if (!first_dump_done) {
+                printf("\r\n=== HEAD DUMP at frame %lu ===\r\n",
+                       (unsigned long)frame_counter);
+                sd_log_dump_head(6);
+                first_dump_done = 1;
+            } else {
+                printf("\r\n=== TAIL DUMP at frame %lu ===\r\n",
+                       (unsigned long)frame_counter);
+                sd_log_dump_tail(6);
+            }
+        }
+
         HAL_Delay(60);
-        
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

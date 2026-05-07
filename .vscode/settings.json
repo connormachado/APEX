@@ -1,0 +1,6 @@
+{
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/APEX_H7/build/Debug/compile_commands.json",
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}/APEX_H7/build/Debug"
+  ]
+}

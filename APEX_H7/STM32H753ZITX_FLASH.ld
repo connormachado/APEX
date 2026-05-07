@@ -166,6 +166,16 @@ SECTIONS
     . = ALIGN(8);
   } >RAM_D1
 
+  /* Explicit AXI SRAM placement (D1, 0x24000000). Required for DMA-safe
+     buffers and for FatFs/SD objects per CLAUDE.md trap #1. */
+  .axi_sram (NOLOAD) :
+  {
+    . = ALIGN(4);
+    *(.axi_sram)
+    *(.axi_sram*)
+    . = ALIGN(4);
+  } >RAM_D1
+
   /* Remove information from the standard libraries */
   /DISCARD/ :
   {

@@ -240,7 +240,17 @@ SECTIONS
     . = ALIGN(8);
   } >DTCMRAM
 
-
+  /* Explicit AXI SRAM placement (D1 SRAM, 0x24000000). Required for
+     DMA-safe buffers and SD/FatFs objects per CLAUDE.md trap #1.
+     NOLOAD: contents are uninitialized at boot; consumers must init
+     in code (FatFs does this via f_mount/f_open). */
+  .axi_sram (NOLOAD) :
+  {
+    . = ALIGN(4);
+    *(.axi_sram)
+    *(.axi_sram*)
+    . = ALIGN(4);
+  } >RAM
 
   /* Remove information from the standard libraries */
   /DISCARD/ :

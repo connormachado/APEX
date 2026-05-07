@@ -46,6 +46,13 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/lsm6dso.c
     Core/Src/spi.c
+    Core/Src/sd_log.c
+)
+
+# Strict warnings only on hand-written sources (do not apply to CubeMX/HAL).
+set_source_files_properties(
+    Core/Src/sd_log.c
+    PROPERTIES COMPILE_FLAGS "-Wall -Wextra -Wpedantic"
 )
 
 # Add include paths

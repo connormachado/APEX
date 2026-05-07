@@ -34,6 +34,13 @@
 /* Exported functions ------------------------------------------------------- */
 extern Diskio_drvTypeDef  USER_Driver;
 
+/* SPI3 prescaler control for SD bus speed.
+   Slow (~256) is mandatory until card init returns success; fast (~16) is
+   used for bulk transfers. disk_initialize() switches to fast on success;
+   these are also exposed for callers that need to step the bus speed. */
+void sd_spi_set_slow_clock(void);
+void sd_spi_set_fast_clock(void);
+
 /* USER CODE END 0 */
 
 #ifdef __cplusplus
