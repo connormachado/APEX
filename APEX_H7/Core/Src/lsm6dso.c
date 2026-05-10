@@ -8,6 +8,9 @@
 // need to pass a valid pointer to spi_txfr_8
 static uint8_t junk = 0x00;
 
+// Our array of IMUs within the system
+imu_t imus[NUM_IMUs];
+
 void cs_low(imu_t *imu) {
     HAL_GPIO_WritePin(imu->cs_port, imu->cs_pin, GPIO_PIN_RESET);  // CS LOW = select
 }

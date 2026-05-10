@@ -1,4 +1,5 @@
-#pragma once
+#ifndef __LSM6DSO_H
+#define __LSM6DSO_H
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -6,18 +7,20 @@
 #include "stm32h7xx_hal.h"
 
 /*****************************************************************/
-//// imu_t ////
-typedef struct {
-    SPI_HandleTypeDef *hspi;   // SPI handle for communication
-    GPIO_TypeDef *cs_port;     // GPIO port for CS pin
-    uint16_t cs_pin;          // GPIO pin number for CS pin
-} imu_t;
-
-
-/*****************************************************************/
 //// Constants ////
 #define NUM_IMU_CHANNELS (6)  // Number of IMU channels to read from
-#define NUM_IMUs (5)          // Number of IMUs in the system
+#define NUM_IMUs (2)          // Number of IMUs in the system
+
+/*****************************************************************/
+//// imu_t ////
+typedef struct {
+    SPI_HandleTypeDef *hspi;    // SPI handle for communication
+    GPIO_TypeDef *cs_port;      // GPIO port for CS pin
+    uint16_t cs_pin;            // GPIO pin number for CS pin
+    uint8_t  id;                // IMU index (0..4) for logging purposes
+} imu_t;
+
+extern imu_t imus[NUM_IMUs];
 
 /*****************************************************************/
 //// Function Prototypes ////
@@ -39,7 +42,7 @@ void imu_write_reg(imu_t *imu, uint8_t reg_addr, uint8_t data);
 void imu_read_reg(imu_t *imu, uint8_t reg_addr, uint8_t *data);
 
 // Read the raw data from all sensors
-// BUFFER MUST BE INITIALIZED TO SIZE 6 * int16_t
+// BUFFER MUST BE INITIALIZED TO SIZE NUM_IMU_CHANNELS * int16_t
 void imu_read_all_data(imu_t *imu, int16_t *return_data_buffer);
 
 
@@ -101,3 +104,6 @@ void imu_read_all_data(imu_t *imu, int16_t *return_data_buffer);
 //// Status Register Flag Bits
 #define XLDA (0x01)           // Accelerometer new data available
 #define GDA (0x02)            // Gyroscope new data available
+
+
+#endif /* __LSM6DSO_H */

@@ -47,6 +47,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Core/Src/lsm6dso.c
     Core/Src/spi.c
     Core/Src/sd_log.c
+    Core/Src/imu_array.c
 )
 
 # Strict warnings only on hand-written sources (do not apply to CubeMX/HAL).

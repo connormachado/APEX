@@ -13,6 +13,7 @@
 #include "spi.h"
 #include "stm32h7xx_hal_pwr_ex.h"
 #include "sd_log.h"
+#include "imu_array.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -108,37 +109,45 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  // Initialize and test the first IMU
   printf("\r\n=== APEX WHO_AM_I bringup first print ===\r\n");
 
-  imu_t imu0 = { .hspi = &hspi1, .cs_port = CS_IMU0_GPIO_Port, .cs_pin = CS_IMU0_Pin };
-  if (!imu_init(&imu0)) {
-      printf("IMU initialization failed\r\n");
+  // Initialize the IMUs and print failure id's
+  if (imu_init_all(&hspi1) != 0) {
+      printf("IMU initialization failed at IMU %d\r\n", imu_init_all(&hspi1));
   } else {
       printf("IMU initialization successful\r\n");
   }
 
-  if (!imu_check_who_am_i(&imu0)) {
-      printf("IMU WHO_AM_I check failed\r\n");
+  // Check the WHO_AM_I register for all IMUs and print failure id's
+  if (check_all_who_am_i() != 0) {
+      printf("IMU WHO_AM_I check failed at IMU %d\r\n", check_all_who_am_i());
   } else {
       printf("IMU WHO_AM_I check successful\r\n");
   }
 
-  int16_t imu_raw_data[NUM_IMU_CHANNELS] = {0};
+  // int16_t imu_raw_data[NUM_IMU_CHANNELS] = {0};
+
+  // Buffer that holds all 6 channels for each of the 5 IMUs defined in lsm6dso.h
+  int16_t imu_data[NUM_IMUs][NUM_IMU_CHANNELS];
   
   while (1)
     {
-        // printf("Testing IMU %d for WHO_AM_I...\n", imu0.cs_pin);
-        imu_read_all_data(&imu0, imu_raw_data);
-        printf("Gyro X: %d, Gyro Y: %d, Gyro Z: %d, Accel X: %d, Accel Y: %d, Accel Z: %d\r\n",
-            imu_raw_data[0], imu_raw_data[1], imu_raw_data[2], imu_raw_data[3], imu_raw_data[4], imu_raw_data[5]);
+      // Read all IMU data
+      read_all_imus(imu_data);
+
+      // Save all IMU data to SD card
+      for (int i=0; i<NUM_IMUs; i++) {
+        printf("IMU %d: gyro=(%6d, %6d, %6d) accel=(%6d, %6d, %6d)\r\n",
+                i,
+                imu_data[i][0], imu_data[i][1], imu_data[i][2],
+                imu_data[i][3], imu_data[i][4], imu_data[i][5]);
 
         apex_frame_t frame = {
             .sync         = 0xA5,
             .timestamp_us = HAL_GetTick() * 1000u,
-            .imu_index    = 0,
-            .gyro         = { imu_raw_data[0], imu_raw_data[1], imu_raw_data[2] },
-            .accel        = { imu_raw_data[3], imu_raw_data[4], imu_raw_data[5] },
+            .imu_index    = i,
+            .gyro         = { imu_data[i][0], imu_data[i][1], imu_data[i][2] },
+            .accel        = { imu_data[i][3], imu_data[i][4], imu_data[i][5] },
         };
         frame.crc8 = crc8_compute((const uint8_t *)&frame, 18);
         sd_log_write_frame(&frame);
@@ -151,17 +160,18 @@ int main(void)
         if ((frame_counter % 100) == 0) {
             if (!first_dump_done) {
                 printf("\r\n=== HEAD DUMP at frame %lu ===\r\n",
-                       (unsigned long)frame_counter);
+                        (unsigned long)frame_counter);
                 sd_log_dump_head(6);
                 first_dump_done = 1;
             } else {
                 printf("\r\n=== TAIL DUMP at frame %lu ===\r\n",
-                       (unsigned long)frame_counter);
+                        (unsigned long)frame_counter);
                 sd_log_dump_tail(6);
             }
         }
+      }
 
-        HAL_Delay(60);
+      HAL_Delay(10);
 
     /* USER CODE END WHILE */
 
@@ -389,16 +399,33 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(CS_IMU4_GPIO_Port, CS_IMU4_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CS_IMU0_GPIO_Port, CS_IMU0_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(CS_IMU3_GPIO_Port, CS_IMU3_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, CS_IMU2_Pin|CS_IMU1_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CS_SDCard0_GPIO_Port, CS_SDCard0_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin : CS_IMU4_Pin */
+  GPIO_InitStruct.Pin = CS_IMU4_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(CS_IMU4_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : CS_IMU0_Pin */
   GPIO_InitStruct.Pin = CS_IMU0_Pin;
@@ -406,6 +433,20 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(CS_IMU0_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : CS_IMU3_Pin */
+  GPIO_InitStruct.Pin = CS_IMU3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(CS_IMU3_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : CS_IMU2_Pin CS_IMU1_Pin */
+  GPIO_InitStruct.Pin = CS_IMU2_Pin|CS_IMU1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : CS_SDCard0_Pin */
   GPIO_InitStruct.Pin = CS_SDCard0_Pin;
