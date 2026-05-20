@@ -19,8 +19,8 @@ Frame layout (must match apex_frame_t in sd_log.h):
     6        6       gyro[3] (int16 LE)
     12       6       accel[3] (int16 LE)
     18       1       crc8 (CCITT poly 0x07, init 0x00, over bytes 0..17)
-    19       15      reserved (zero-filled)
-                   = 34 bytes total
+    19       13      reserved (zero-filled)
+                   = 32 bytes total
 """
 
 import struct
@@ -31,9 +31,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # < = little-endian, no padding. Mirrors __attribute__((packed)) on the C side.
-FRAME_FMT = "<BIBhhhhhhB15s"
+FRAME_FMT = "<BIBhhhhhhB13s"
 FRAME_SIZE = struct.calcsize(FRAME_FMT)
-assert FRAME_SIZE == 34, f"format string size mismatch: got {FRAME_SIZE}, expected 34"
+assert FRAME_SIZE == 32, f"format string size mismatch: got {FRAME_SIZE}, expected 32"
 
 # IMU scale factors from your firmware config (LSM6DSO at ±4g / ±1000 dps).
 ACCEL_SCALE_G  = 0.122 / 1000.0   # 0.122 mg/LSB  → g

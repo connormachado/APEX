@@ -27,6 +27,8 @@ build/
 # Claude Specific files
 CLAUDE.md
 .claude/
-newest_prompt.md
+Claude_Guide.md
+SD_logging_validation_prompt.md
+python_parser_prompt.md
 
 dataset/synthetic_v1.h5

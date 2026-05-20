@@ -3,7 +3,7 @@
 // IMU Pin Definitions from CubeMX
 static GPIO_TypeDef *cs_ports[NUM_IMUs] = {
     CS_IMU0_GPIO_Port,
-    CS_IMU1_GPIO_Port,
+    //CS_IMU1_GPIO_Port,
     // CS_IMU2_GPIO_Port,
     // CS_IMU3_GPIO_Port,
     // CS_IMU4_GPIO_Port
@@ -11,7 +11,7 @@ static GPIO_TypeDef *cs_ports[NUM_IMUs] = {
 
 static uint16_t cs_pins[NUM_IMUs] = {
     CS_IMU0_Pin,
-    CS_IMU1_Pin,
+    //CS_IMU1_Pin,
     // CS_IMU2_Pin,
     // CS_IMU3_Pin,
     // CS_IMU4_Pin

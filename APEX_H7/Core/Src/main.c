@@ -149,7 +149,7 @@ int main(void)
             .gyro         = { imu_data[i][0], imu_data[i][1], imu_data[i][2] },
             .accel        = { imu_data[i][3], imu_data[i][4], imu_data[i][5] },
         };
-        frame.crc8 = crc8_compute((const uint8_t *)&frame, 18);
+        frame.crc8 = crc8_compute((const uint8_t *)&frame, APEX_FRAME_CRC_LEN);
         sd_log_write_frame(&frame);
         frame_counter++;
 

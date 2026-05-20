@@ -9,7 +9,7 @@
 /*****************************************************************/
 //// Constants ////
 #define NUM_IMU_CHANNELS (6)  // Number of IMU channels to read from
-#define NUM_IMUs (2)          // Number of IMUs in the system
+#define NUM_IMUs (1)          // Number of IMUs in the system
 
 /*****************************************************************/
 //// imu_t ////

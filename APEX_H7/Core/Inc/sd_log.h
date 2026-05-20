@@ -8,7 +8,10 @@
 extern "C" {
 #endif
 
-/* 34-byte packed log frame. Layout matches CLAUDE.md and the offline parser. */
+#define APEX_FRAME_CRC_LEN  (18u)
+#define APEX_FRAME_SIZE     (32u)
+
+/* 32-byte packed log frame. Layout matches CLAUDE.md and the offline parser. */
 typedef struct __attribute__((packed)) {
     uint8_t  sync;            /* 0xA5 */
     uint32_t timestamp_us;    /* TIM5 microseconds */
@@ -16,9 +19,9 @@ typedef struct __attribute__((packed)) {
     int16_t  gyro[3];         /* raw LSB */
     int16_t  accel[3];        /* raw LSB */
     uint8_t  crc8;            /* CCITT poly 0x07, init 0x00, over bytes 0..17 */
-    uint8_t  reserved[15];    /* zero-filled */
+    uint8_t  reserved[13];    /* zero-filled */
 } apex_frame_t;
-_Static_assert(sizeof(apex_frame_t) == 34, "apex_frame_t must be 34 bytes");
+_Static_assert(sizeof(apex_frame_t) == APEX_FRAME_SIZE, "apex_frame_t must be 32 bytes");
 
 typedef enum {
     SD_LOG_OK = 0,

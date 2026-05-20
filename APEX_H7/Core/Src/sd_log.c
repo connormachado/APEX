@@ -234,12 +234,12 @@ _Bool sd_log_self_test(void) {
         f.imu_index    = (uint8_t)(i % 5);                                                                                                                                        
         f.gyro[0]      = (int16_t)i;
         f.accel[2]     = (int16_t)-i;                                                                                                                                             
-        f.crc8         = crc8_compute((const uint8_t *)&f, 18);                                                                                                                   
+        f.crc8         = crc8_compute((const uint8_t *)&f, APEX_FRAME_CRC_LEN);
         if (sd_log_write_frame(&f) != SD_LOG_OK) { printf("write %lu fail\r\n", i); return 0; }                                                                                   
     }                                                                                                                                                                             
                 
     if (sd_log_flush() != SD_LOG_OK) { printf("flush fail\r\n"); return 0; }                                                                                                      
     if (sd_log_close() != SD_LOG_OK) { printf("close fail\r\n"); return 0; }
-    printf("self_test OK: 3400 bytes written\r\n");                                                                                                                               
+    printf("self_test OK: %lu bytes written\r\n", (unsigned long)(100u * sizeof(apex_frame_t)));
     return 1;                                                                                                                                                                     
 }   
