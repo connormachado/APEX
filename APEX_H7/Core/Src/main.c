@@ -9,11 +9,14 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include <math.h>
+
 #include "lsm6dso.h"
 #include "spi.h"
 #include "stm32h7xx_hal_pwr_ex.h"
 #include "sd_log.h"
 #include "imu_array.h"
+#include "Fusion/FusionAhrs.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -99,11 +102,11 @@ int main(void)
   /* Mount SD and open APEXxxxx.BIN. SPI3 prescaler is moved to fast (BAUD/16)                                                                                                      
      automatically by disk_initialize() once the card finishes its slow-clock                                                                                                       
      init handshake. */                                                                                                                                                             
-  if (sd_log_init() != SD_LOG_OK) {                                                                                                                                                 
-      printf("sd_log_init FAILED\r\n");                                                                                                                                             
-  } else {                                                                                                                                                                          
-      printf("sd_log_init OK\r\n");
-  }
+  // if (sd_log_init() != SD_LOG_OK) {                                                                                                                                                 
+  //     printf("sd_log_init FAILED\r\n");                                                                                                                                             
+  // } else {                                                                                                                                                                          
+  //     printf("sd_log_init OK\r\n");
+  // }
 
   /* USER CODE END 2 */
 
@@ -129,47 +132,85 @@ int main(void)
 
   // Buffer that holds all 6 channels for each of the 5 IMUs defined in lsm6dso.h
   int16_t imu_data[NUM_IMUs][NUM_IMU_CHANNELS];
+
+  // Reference time for Madgwick filter update rate control
+  uint32_t t_last = HAL_GetTick();  // milliseconds
   
   while (1)
     {
+      static uint32_t sample_count = 0;
+      static uint32_t report_tick  = 0;
+
+      // inside your SPI read loop, after every successful IMU read:
+      sample_count++;
+
+      if ((HAL_GetTick() - report_tick) >= 1000) {  // every 1 second
+          report_tick = HAL_GetTick();
+          printf("RATE: %lu Hz\r\n", sample_count);
+          sample_count = 0;
+      }
+
+      //// Step 1: Read IMU data, convert to physical units
       // Read all IMU data
       read_all_imus(imu_data);
 
-      // Save all IMU data to SD card
-      for (int i=0; i<NUM_IMUs; i++) {
-        printf("IMU %d: gyro=(%6d, %6d, %6d) accel=(%6d, %6d, %6d)\r\n",
-                i,
-                imu_data[i][0], imu_data[i][1], imu_data[i][2],
-                imu_data[i][3], imu_data[i][4], imu_data[i][5]);
+      int i = 0;  // Only one IMU for now, so just read imu_data[0]
+      // Convert raw data to physical units to meet library specs
+      float gx_dps = (float)imu_data[i][0] * GYRO_SENSITIVITY_1000DPS / 1000.0f;
+      float gy_dps = (float)imu_data[i][1] * GYRO_SENSITIVITY_1000DPS / 1000.0f;
+      float gz_dps = (float)imu_data[i][2] * GYRO_SENSITIVITY_1000DPS / 1000.0f;
 
-        apex_frame_t frame = {
-            .sync         = 0xA5,
-            .timestamp_us = HAL_GetTick() * 1000u,
-            .imu_index    = i,
-            .gyro         = { imu_data[i][0], imu_data[i][1], imu_data[i][2] },
-            .accel        = { imu_data[i][3], imu_data[i][4], imu_data[i][5] },
-        };
-        frame.crc8 = crc8_compute((const uint8_t *)&frame, APEX_FRAME_CRC_LEN);
-        sd_log_write_frame(&frame);
-        frame_counter++;
+      float ax_g   = (float)imu_data[i][3] * ACCEL_SENSITIVITY_4G / 1000.0f;
+      float ay_g   = (float)imu_data[i][4] * ACCEL_SENSITIVITY_4G / 1000.0f;
+      float az_g   = (float)imu_data[i][5] * ACCEL_SENSITIVITY_4G / 1000.0f;
 
-        if ((frame_counter % 16) == 0) {
-            sd_log_flush();
-        }
+      float mag = sqrtf(ax_g*ax_g + ay_g*ay_g + az_g*az_g);
 
-        if ((frame_counter % 100) == 0) {
-            if (!first_dump_done) {
-                printf("\r\n=== HEAD DUMP at frame %lu ===\r\n",
-                        (unsigned long)frame_counter);
-                sd_log_dump_head(6);
-                first_dump_done = 1;
-            } else {
-                printf("\r\n=== TAIL DUMP at frame %lu ===\r\n",
-                        (unsigned long)frame_counter);
-                sd_log_dump_tail(6);
-            }
-        }
-      }
+      //// Step 2: Feed the filter (call this at your sample rate — 1 kHz, 500 Hz, whatever you're running)
+      // check before feeding the filter
+      // uint32_t t_now = HAL_GetTick();
+      // if ((t_now - t_last) > ???) {  // ???
+      //   t_last = t_now;     // Update reference time
+
+      //   float mag = sqrtf(ax_g*ax_g + ay_g*ay_g + az_g*az_g);
+      //   if (mag > 0.1f && mag < 8.0f) {
+      //       MadgwickAHRSupdateIMU(gx_rads, gy_rads, gz_rads, ax_g, ay_g, az_g);
+      //   }
+      // }
+
+
+        // printf("IMU %d: gyro=(%7.3f, %7.3f, %7.3f) dps  "
+        //       "accel=(%7.3f, %7.3f, %7.3f) g  |a|=%.3f g\r\n",
+        //       imus[i].id, gx_dps, gy_dps, gz_dps, ax_g, ay_g, az_g, mag);
+
+        // Save all IMU data to SD card
+        // apex_frame_t frame = {
+        //     .sync         = 0xA5,
+        //     .timestamp_us = HAL_GetTick() * 1000u,
+        //     .imu_index    = i,
+        //     .gyro         = { imu_data[i][0], imu_data[i][1], imu_data[i][2] },
+        //     .accel        = { imu_data[i][3], imu_data[i][4], imu_data[i][5] },
+        // };
+        // frame.crc8 = crc8_compute((const uint8_t *)&frame, APEX_FRAME_CRC_LEN);
+        // sd_log_write_frame(&frame);
+        // frame_counter++;
+
+        // if ((frame_counter % 16) == 0) {
+        //     sd_log_flush();
+        // }
+
+        // if ((frame_counter % 100) == 0) {
+        //     if (!first_dump_done) {
+        //         printf("\r\n=== HEAD DUMP at frame %lu ===\r\n",
+        //                 (unsigned long)frame_counter);
+        //         sd_log_dump_head(6);
+        //         first_dump_done = 1;
+        //     } else {
+        //         printf("\r\n=== TAIL DUMP at frame %lu ===\r\n",
+        //                 (unsigned long)frame_counter);
+        //         sd_log_dump_tail(6);
+        //     }
+        // }
 
       HAL_Delay(10);
 
@@ -424,35 +465,35 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pin = CS_IMU4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(CS_IMU4_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : CS_IMU0_Pin */
   GPIO_InitStruct.Pin = CS_IMU0_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(CS_IMU0_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : CS_IMU3_Pin */
   GPIO_InitStruct.Pin = CS_IMU3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(CS_IMU3_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : CS_IMU2_Pin CS_IMU1_Pin */
   GPIO_InitStruct.Pin = CS_IMU2_Pin|CS_IMU1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : CS_SDCard0_Pin */
   GPIO_InitStruct.Pin = CS_SDCard0_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
   HAL_GPIO_Init(CS_SDCard0_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */

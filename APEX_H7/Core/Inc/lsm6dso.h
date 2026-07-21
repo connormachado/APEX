@@ -11,6 +11,10 @@
 #define NUM_IMU_CHANNELS (6)  // Number of IMU channels to read from
 #define NUM_IMUs (1)          // Number of IMUs in the system
 
+// Physical unit conversion factors (LSM6DSO datasheet 4.1 Table 2)
+#define ACCEL_SENSITIVITY_4G   (0.122f)   // mg per LSB
+#define GYRO_SENSITIVITY_1000DPS (35.0f)  // mdps per LSB
+
 /*****************************************************************/
 //// imu_t ////
 typedef struct {
@@ -90,11 +94,11 @@ void imu_read_all_data(imu_t *imu, int16_t *return_data_buffer);
 
 //// Accelerometer Configuration Bits
 #define ODR_XL_104HZ (0x40)
-#define FS_XL_4G (0x10)
+#define FS_XL_4G (0x08)                 // See legal pad for derivation ????
 
 //// Gyrospcope Configuration Bits
 #define ODR_G_104HZ (0x40)
-#define FS_G_1000DPS (0x04) // check again
+#define FS_G_1000DPS (0x08)             // See legal pad for derivation ????
 
 //// Control Register 3 Configuration Bits
 #define SW_RESET (0x01)       // Boot up device in deterministic state

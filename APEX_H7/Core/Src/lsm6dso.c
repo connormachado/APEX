@@ -168,6 +168,21 @@ void imu_read_reg(imu_t *imu, uint8_t reg_addr, uint8_t *data) {
 }
 
 
+bool imu_attempt_recovery(imu_t *imu)
+{
+    printf("[IMU%d] Timeout — attempting recovery\r\n", imu->cs_pin);
+
+    if (!imu_init(imu)) {
+        printf("[IMU%d] Recovery failed\r\n", imu->cs_pin);
+        return false;
+    }
+
+    printf("[IMU%d] Recovered OK\r\n", imu->cs_pin);
+    return true;
+}
+
+
+
 // Read the incrementing data registers for gyro and accel
 void imu_read_all_data(imu_t *imu, int16_t *return_data_buffer) {
     // Read the 6 gyro and 6 accel data registers in one SPI transaction
@@ -178,13 +193,18 @@ void imu_read_all_data(imu_t *imu, int16_t *return_data_buffer) {
     // the gyroscope and the accelerometer
     // Will eventually be an interrupt driven system, but for
     // hardware bringup this is what we got
-    uint16_t timeout = 1000;   // timeout to prevent infinite loop in case of hardware failure
+    uint32_t t_start = HAL_GetTick();  // milliseconds
     while (!imu_data_ready(imu)) {
-        HAL_Delay(1);
-        timeout--;
-        if (timeout == 0) {
+        if ((HAL_GetTick() - t_start) > 50) {  // 50ms >> 1 ODR period
             printf("Timeout while waiting for IMU data to be ready\r\n");
-            return;
+
+            // Check if re-boot worked
+            if (imu_attempt_recovery(imu)) {
+                printf("Recovery successful, attempting to read data again\r\n");
+            } else {
+                printf("Recovery failed, skipping this read cycle\r\n");
+                return;
+            }
         }
     }
 

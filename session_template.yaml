@@ -1,0 +1,193 @@
+# APEX Session Metadata — Template
+#
+# One YAML file per session (one gym visit). Lives alongside the raw .BIN
+# files from the SD card. The pipeline ingests this + the binary frames and
+# produces a labeled HDF5 dataset.
+#
+# Schema design notes:
+#   - climbers and routes are defined ONCE at the top of the file and
+#     referenced by ID in `attempts`. Avoids repetition. Same climber_id
+#     and route_id can be reused across sessions for cross-session joins.
+#   - Three labels per attempt, always: posted, perceived, subjective.
+#   - Attempt → IMU data linkage uses the MCU's timestamp_us domain.
+#     Wall-clock is for humans only.
+#   - Sensor layout is defined once per session; can be overridden per
+#     attempt if a sensor slipped or was repositioned.
+#   - Grade strings: "V0".."V17" or "VB" (V-basic, below V0).
+#     Ranges/plus/minus go in notes for v1. Promote later if needed.
+
+schema_version: "1.0"
+
+# ─────────────────────────────────────────────────────────────────────────
+# SESSION — top-level facts about this gym visit
+# ─────────────────────────────────────────────────────────────────────────
+session:
+  session_id: "S20260519-NWC-01"        # convention: SYYYYMMDD-<gymcode>-<seq>
+  date: "2026-05-19"                     # ISO date
+  start_time_local: "18:30"              # HH:MM local
+  timezone: "America/New_York"           # IANA tz; needed to reconstruct UTC
+  collected_by: "Connor"
+  notes: |
+    First multi-climber session. Cave was warm (~24°C), holds felt greasy
+    by the second half. C002 was post-workout, flag if fatigue is suspect.
+
+  gym:
+    name: "Northern Whitewater Club"
+    city: "Lebanon, NH"
+    code: "NWC"                          # short code; reuse across sessions
+
+  firmware:
+    repo: "apex-firmware"
+    commit: "abc1234"                    # short sha is fine
+    frame_format_version: 2              # 1 = 34-byte, 2 = 32-byte. BUMP THIS.
+    sample_rate_hz: 104
+
+  raw_files:
+    # All .BIN files produced this session. The pipeline walks each.
+    - filename: "APEX0023.BIN"
+      sd_card_id: "SD-A"                 # which physical card; helps if you swap
+      byte_count: 49283072               # filled in by ingestion, optional here
+      sha256: null                       # filled in by ingestion
+
+# ─────────────────────────────────────────────────────────────────────────
+# CLIMBERS — anyone whose movement was recorded this session
+# ─────────────────────────────────────────────────────────────────────────
+# IRB note: climber_id is a pseudonym. Real-name mapping lives in a SEPARATE
+# file not committed to the repo (e.g. ~/.apex/identities.yaml).
+climbers:
+  - climber_id: "C001"
+    pseudonym: "Connor"                  # optional, for your own sanity
+    height_cm: 178
+    weight_kg: 72
+    ape_index_cm: 2                      # wingspan − height; can be negative
+    dominant_hand: right                 # left | right | ambidextrous
+    years_climbing: 4
+    age: 21
+    typical_max_onsight: "V5"            # best on-sight in last 3 months
+    typical_max_redpoint: "V7"           # best send ever
+    consent_recorded: true               # IRB / informed consent on file
+
+  - climber_id: "C002"
+    pseudonym: "Tad"
+    height_cm: 183
+    weight_kg: 78
+    ape_index_cm: 5
+    dominant_hand: right
+    years_climbing: 6
+    age: 22
+    typical_max_onsight: "V6"
+    typical_max_redpoint: "V8"
+    consent_recorded: true
+
+# ─────────────────────────────────────────────────────────────────────────
+# SENSOR LAYOUT — which IMU index maps to which body location
+# ─────────────────────────────────────────────────────────────────────────
+# `imu_index` here matches the byte in the binary frame's imu_index field.
+# Per-attempt overrides are allowed below in `attempts[].sensor_layout_override`.
+sensor_layout:
+  imu_0: right_wrist
+  imu_1: left_wrist
+  imu_2: right_upper_arm
+  imu_3: left_upper_arm
+  imu_4: hip
+  # imu_5 is spare; omit if not deployed
+
+  orientation_convention: |
+    Per-sensor body frame (right-hand):
+      +X = forward (out of palm for wrist; along bone toward distal for arm)
+      +Y = up (toward elbow for wrist; toward shoulder for arm)
+      +Z = right (right-hand-rule completion)
+    Hip: +X forward, +Y up, +Z right.
+
+  mounting: |
+    Wrists: 1in elastic wristband, sensor pocket on dorsal side.
+    Upper arms: 2in compression band, sensor on lateral aspect.
+    Hip: belt clip at right iliac crest.
+
+  calibration:
+    static_baseline_recorded: true       # 30s standing-still segment at session start
+    static_baseline_attempt_id: "S20260519-NWC-01-BASELINE"  # see attempts below
+
+# ─────────────────────────────────────────────────────────────────────────
+# ROUTES — climbs attempted this session, defined once
+# ─────────────────────────────────────────────────────────────────────────
+routes:
+  - route_id: "NWC-cave-blue-12"         # gym-stable ID; reuse across sessions
+    gym_section: "cave"
+    wall_angle_deg: 35                   # 0 = vertical; + = overhang, − = slab
+    posted_grade: "V4"
+    setter: "K. Patel"                   # tracking setter is critical — major label noise source
+    date_set: "2026-04-15"               # routes drift in difficulty as holds wear
+    style_tags: [powerful, dynamic, big-moves]
+    estimated_moves: 8
+    height_m: 4.2
+    notes: "Crux is move 2, a big throw to a sloper."
+
+  - route_id: "NWC-slab-yellow-07"
+    gym_section: "slab"
+    wall_angle_deg: -15                  # negative = slab
+    posted_grade: "V2"
+    setter: "M. Chen"
+    date_set: "2026-05-01"
+    style_tags: [balancey, technical, footwork]
+    estimated_moves: 6
+    height_m: 4.0
+    notes: ""
+
+# ─────────────────────────────────────────────────────────────────────────
+# ATTEMPTS — the core data records, one per climb attempt
+# ─────────────────────────────────────────────────────────────────────────
+attempts:
+  # Calibration baseline — special attempt for static reference
+  - attempt_id: "S20260519-NWC-01-BASELINE"
+    kind: baseline                       # baseline | climb
+    climber_id: "C001"
+    raw_file: "APEX0023.BIN"
+    timestamp_us_start: 0
+    timestamp_us_end: 30000000           # 30 s
+    notes: "Standing still, arms at sides, eyes forward."
+
+  # First real climb attempt
+  - attempt_id: "S20260519-NWC-01-A001"
+    kind: climb
+    climber_id: "C001"
+    route_id: "NWC-cave-blue-12"
+    attempt_number: 1                    # nth try on this route this session
+    raw_file: "APEX0023.BIN"
+    timestamp_us_start: 32500000
+    timestamp_us_end: 58901000
+
+    # Three labels, always
+    posted_grade: "V4"
+    perceived_grade: "V5"                # climber's own assessment
+    subjective_difficulty: medium        # easy | medium | hard
+
+    outcome: fall                        # send | fall | give_up | partial
+    fall_move_number: 5                  # optional; null if not applicable
+
+    # Climber state (rough but useful for fatigue analysis)
+    fatigue_pre: 2                       # 1=fresh, 5=cooked
+    fatigue_post: 3
+    rest_seconds_before: 180             # rest since last attempt; null if first
+
+    sensor_layout_override: null         # use session layout
+    notes: "Slipped at the throw. Said it felt V5 — heel hook on move 2 felt awkward."
+
+  - attempt_id: "S20260519-NWC-01-A002"
+    kind: climb
+    climber_id: "C001"
+    route_id: "NWC-cave-blue-12"
+    attempt_number: 2
+    raw_file: "APEX0023.BIN"
+    timestamp_us_start: 240500000
+    timestamp_us_end: 268120000
+    posted_grade: "V4"
+    perceived_grade: "V4"
+    subjective_difficulty: medium
+    outcome: send
+    fall_move_number: null
+    fatigue_pre: 3
+    fatigue_post: 4
+    rest_seconds_before: 240
+    sensor_layout_override: null
+    notes: "Cleaner beta on the throw. Heel hook resolved."
