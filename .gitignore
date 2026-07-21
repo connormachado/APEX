@@ -1,6 +1,8 @@
+# Random stuff
 .venv
 /venv
-/dataset
+/datasetg
+__pycache__/
 
 # macOS
 .DS_Store

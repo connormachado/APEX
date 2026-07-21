@@ -75,3 +75,14 @@ Werkzeug==3.1.5
 wheel==0.45.1
 wrapt==2.0.1
 pyserial
+
+# Ingestion pipeline (ingest.py, metadata_models.py, run_pipeline.py)
+annotated-types==0.7.0
+pydantic==2.13.4
+pydantic_core==2.46.4
+PyYAML==6.0.3
+
+# Test suite
+iniconfig==2.3.0
+pluggy==1.6.0
+pytest==9.1.1
